@@ -24,19 +24,6 @@ function _update()
 	end
 	player:update()
 	
-	--player movement --
-	if btnp(⬆️) then
-		player.y-=15
-	end
-	if btn(⬇️) then
-		player.y+=1
-	end
-	if btn(⬅️) then
-		player.x-=1
-	end
-	if btn(➡️) then
-		player.x+=1
-	end	
 				
 end
 
@@ -53,6 +40,49 @@ end
 
 function make_knight(x,y)
     return make_game_object(001,"knight",x,y,16,16,{
+		jumping=false,
+		update=function(self)		
+			--player movement --
+			if (btnp(⬆️) and self.jumping==false) then
+				self.y_v=-5
+				self.jumping=true
+			end
+			if btnp(⬇️) then
+				--self.y_v+=1--
+			end
+			if btn(⬅️) then
+				self.x_v=-2
+			elseif btn(➡️) then
+				self.x_v=2
+			else
+				self.x_v=0
+			end	
+		
+			-- The following is collision code --
+			self.x=mid(0,(self.x+self.x_v),120)
+			self.y=mid(0,(self.y+self.y_v),96)
+			
+			for obj in all(map_objects) do
+				local hit_dir=self:check_for_collision(obj)
+				if hit_dir=="top" and fget(obj.sprite,0) then
+					self.y=obj.y+obj.height
+				elseif hit_dir=="bottom" and fget(obj.sprite,0) then	
+					self.y=obj.y-self.height
+					self.jumping=false
+				elseif hit_dir=="left" and fget(obj.sprite,0) then	
+					self.x=obj.x+obj.width
+				elseif hit_dir=="right" and fget(obj.sprite,0) then	
+					self.x=obj.x-self.width
+				end
+			end
+			
+			-- The force of gravity is 30 px per second, 1 px per update() call --
+			-- Unless there is a hit for adjacency in the down direction --
+			if (self.y_v<=0) then
+				self.y_v+=1
+			end
+			
+		end,
 		draw=function(self)
 			palt(0,false)
 			palt(9,true)
@@ -89,24 +119,6 @@ function make_game_object(sprite,name,x,y,width,height,props)
 				if(self.y_v<=0) then
 					self.y_v+=1
 				end
-				
-				-- The following is collision code --
-				self.x=mid(0,(self.x+self.x_v),120)
-				self.y=mid(0,(self.y+self.y_v),96)
-				
-				for obj in all(map_objects) do
-					local hit_dir=self:check_for_collision(obj)
-					if hit_dir=="top" and fget(obj.sprite,0) then
-						self.y=obj.y+obj.height
-					elseif hit_dir=="bottom" and fget(obj.sprite,0) then	
-						self.y=obj.y-self.height
-					elseif hit_dir=="left" and fget(obj.sprite,0) then	
-						self.x=obj.x+obj.width
-					elseif hit_dir=="right" and fget(obj.sprite,0) then	
-						self.x=obj.x-self.width
-					end
-				end
-				
 			end
 			
 		end,
@@ -156,6 +168,45 @@ function make_game_object(sprite,name,x,y,width,height,props)
 				return "right"
 			end
 		end,
+		check_for_adjacency=function(self,obj,direction)
+			local top_hitbox={
+			    x=self.x+2,
+				y=self.y-2,
+				width=self.width-4,
+				height=self.height/2
+			}
+			local bottom_hitbox={
+			    x=self.x+2,
+				y=self.y+self.height/2,
+				width=self.width-4,
+				height=(self.height/2)+2
+			}
+			local left_hitbox={
+			    x=(player.x-2),
+				y=(player.y+2),
+				width=6,
+				height=4
+			}
+			local right_hitbox={
+			    x=(player.x+4),
+				y=(player.y+2),
+				width=6,
+				height=4
+			}
+			
+			if direction=="up" and obj_overlap(top_hitbox, obj) then
+				return true
+			end
+			if direction=="down" and obj_overlap(bottom_hitbox, obj) then
+				return true
+			end
+			if direction=="left" and obj_overlap(left_hitbox, obj) then
+				return true
+			end
+			if direction=="right" and obj_overlap(right_hitbox, obj) then
+				return true
+			end
+		end
 	}
 	local key,value
 	for key,value in pairs(props) do
