@@ -1,44 +1,302 @@
 pico-8 cartridge // http://www.pico-8.com
 version 35
 __lua__
---display logo
-i=0
-k=0
-j=0
-function logo()
-	if i<8 then
-	 spr(1, 32, 32, 8, i)
-	else
-		spr(1, 32, 32, 8, 8)
-	end
-	if k>2 then
-		cls() 
-		spr(1, 32, 40, 8, 8)
-	end
-	if j>2 then
-		cls() 
-		spr(1, 32, 32, 8, 8)
-		print("start?", 44, 90, 11)
-		print("press x", 42, 96, 11)
-	end	
+local player
+local map_objects
+local game_state
+local logo_sprCount
+local logo_pix
+
+function _init()
+	map_objects={}
+	player=make_knight(60,60)
+	plat3=make_platform(68,100)
+	plat2=make_platform(60,100)
+	plat1=make_platform(52,100)
+	add(map_objects,plat3)
+	add(map_objects,plat2)
+	add(map_objects,plat1)
+	
+	-- game_state at 0001 is displaying the logo --
+	-- game_state at 0010 is the start menu --
+	-- game_state at 0100 is running the game itself --
+	game_state=0b0001
+	
+	logo_sprCount=0
+	logo_pix={}
 end
 
 function _update()
-	i+=0.4
-	if i>8 then
-		k+=.15
+	-- Called 30 times a second --
+    local obj
+	
+	if game_state&0b0001==1 then
+		-- run the logo --
+		if logo_sprCount%5==0 then
+			add( logo_pix, make_pix(60,60,(flr(rnd(6))-3),(flr(rnd(6))-3),11,10) )
+		end
+		
+		for obj in all(logo_pix) do
+			obj:update()
+			
+			if obj.life<=0 then
+				del(logo_pix,obj)
+			end
+		end
+		
+		if btn(4) then
+			game_state=0b0100
+		end
+		
+	else	
+		for obj in all(map_objects) do
+			obj:update()
+		end
+		player:update()
 	end
-	if k>2 then
-		j+=.15
-	end 
+	
 end
 
 function _draw()
+	-- Called 30 times a second, this function writes from the draw buffer --
+    cls()
+    local obj
 	
-	cls()
-	logo()
+	if game_state&0b0001==1 then
+		-- run the logo --
+		
+		for obj in all(logo_pix) do
+			obj:draw()
+		end
+		
+		spr(010, 40, 32, 6, 7)
+		if logo_sprCount>10 and logo_sprCount<20 then
+			--
+			rectfill(65, 42, 65, 42, 7)
+		elseif logo_sprCount>20 and logo_sprCount<30 then
+			--
+			line(64, 42, 65, 41, 7)
+		elseif logo_sprCount>30 then
+			--
+			rectfill(64, 41, 64, 41, 7)
+		else
+			--
+		end
+		logo_sprCount+=1
+	else	
+		for obj in all(map_objects) do
+			obj:draw()
+		end
+		player:draw()
+	end
 	
 end
+
+function make_knight(x,y)
+    return make_game_object(001,"knight",x,y,16,16,{
+		jumping=false,
+		update=function(self)		
+			--player movement --
+			if (btnp(⬆️) and self.jumping==false) then
+				self.y_v=-5
+				self.jumping=true
+			end
+			if btnp(⬇️) then
+				--self.y_v+=1--
+			end
+			if btn(⬅️) then
+				self.x_v=-2
+			elseif btn(➡️) then
+				self.x_v=2
+			else
+				self.x_v=0
+			end	
+		
+			-- The following is collision code --
+			self.x=mid(0,(self.x+self.x_v),120)
+			self.y=mid(0,(self.y+self.y_v),96)
+			
+			for obj in all(map_objects) do
+				local hit_dir=self:check_for_collision(obj)
+				if hit_dir=="top" and fget(obj.sprite,0) then
+					self.y=obj.y+obj.height
+				elseif hit_dir=="bottom" and fget(obj.sprite,0) then	
+					self.y=obj.y-self.height
+					self.jumping=false
+				elseif hit_dir=="left" and fget(obj.sprite,0) then	
+					self.x=obj.x+obj.width
+				elseif hit_dir=="right" and fget(obj.sprite,0) then	
+					self.x=obj.x-self.width
+				end
+			end
+			
+			-- The force of gravity is 30 px per second, 1 px per update() call --
+			-- Unless there is a hit for adjacency in the down direction --
+			if (self.y_v<=0) then
+				self.y_v+=1
+			end
+			
+		end,
+		draw=function(self)
+			palt(0,false)
+			palt(9,true)
+			spr(self.sprite,self.x,self.y,2,2)
+			palt(0,true)
+			palt(9,false)
+		end
+	})
+end
+
+function make_platform(x,y)
+    return make_game_object(064,"block",x,y,8,8,{})
+end
+
+function make_pix(x,y,v_x,v_y,colour,life)
+	local obj={
+		x=x,
+		y=y,
+		v_x=v_x,
+		v_y=v_y,
+		colour=colour,
+		life=life,
+		update=function(self)
+			x+=v_x
+			y+=v_y
+			life-=1
+		end,
+		draw=function(self)
+			line(x, y, x, y, colour)
+		end
+	}
+	return obj
+end
+	
+function make_game_object(sprite,name,x,y,width,height,props)
+	local obj={
+		-- The top left sprite --
+		sprite=sprite,
+		-- Game object name --
+		name=name,
+		-- The top left (x,y)
+		x=x,
+		y=y,
+		-- These are velocity values --
+		x_v=0,
+		y_v=0,
+		-- The full width and height of the complete sprite i.e. 16x16 or 8x8 etc.
+		width=width,
+		height=height,
+		update=function(self)
+			-- flag 0 sprites are stationary --
+			if(fget(self.sprite,0)==false) then
+				-- The force of gravity is 30 px per second, 1 px per update() call --
+				if(self.y_v<=0) then
+					self.y_v+=1
+				end
+			end
+			
+		end,
+		draw=function(self)
+			spr(self.sprite,self.x,self.y,1,1)
+		end,
+		check_for_hit=function(self,obj)
+			-- Helper function for check_for_collision()
+			return obj_overlap(self,obj) 
+		end,
+		check_for_collision=function(self,obj)
+			-- Check to see if this obj has collided with something --
+			local top_hitbox={
+			    x=self.x+2,
+				y=self.y,
+				width=self.width-4,
+				height=self.height/2
+			}
+			local bottom_hitbox={
+			    x=self.x+2,
+				y=self.y+self.height/2,
+				width=self.width-4,
+				height=self.height/2
+			}
+			local left_hitbox={
+			    x=self.x,
+				y=self.y+2,
+				width=self.width/2,
+				height=self.height-4
+			}
+			local right_hitbox={
+			    x=self.x+self.width/2,
+				y=self.y+2,
+				width=self.width/2,
+				height=self.height-4
+			}
+			if obj_overlap(top_hitbox, obj) then
+				return "top"
+			end
+			if obj_overlap(bottom_hitbox, obj) then
+				return "bottom"
+			end
+			if obj_overlap(left_hitbox, obj) then
+				return "left"
+			end
+			if obj_overlap(right_hitbox, obj) then
+				return "right"
+			end
+		end,
+		check_for_adjacency=function(self,obj,direction)
+			local top_hitbox={
+			    x=self.x+2,
+				y=self.y-2,
+				width=self.width-4,
+				height=self.height/2
+			}
+			local bottom_hitbox={
+			    x=self.x+2,
+				y=self.y+self.height/2,
+				width=self.width-4,
+				height=(self.height/2)+2
+			}
+			local left_hitbox={
+			    x=(player.x-2),
+				y=(player.y+2),
+				width=6,
+				height=4
+			}
+			local right_hitbox={
+			    x=(player.x+4),
+				y=(player.y+2),
+				width=6,
+				height=4
+			}
+			
+			if direction=="up" and obj_overlap(top_hitbox, obj) then
+				return true
+			end
+			if direction=="down" and obj_overlap(bottom_hitbox, obj) then
+				return true
+			end
+			if direction=="left" and obj_overlap(left_hitbox, obj) then
+				return true
+			end
+			if direction=="right" and obj_overlap(right_hitbox, obj) then
+				return true
+			end
+		end
+	}
+	local key,value
+	for key,value in pairs(props) do
+		obj[key]=value
+	end
+	return obj
+end
+
+function line_overlap(min1,max1,min2,max2)
+    return max1>min2 and max2>min1
+end
+
+function obj_overlap(obj1, obj2)
+    return line_overlap(obj1.x,(obj1.x+obj1.width),obj2.x,(obj2.x+obj2.width)) and line_overlap(obj1.y,(obj1.y+obj1.height),obj2.y,(obj2.y+obj2.height))
+end
+
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
