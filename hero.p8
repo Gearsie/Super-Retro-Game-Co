@@ -9,13 +9,13 @@ local logo_pix
 
 function _init()
 	map_objects={}
-	player=make_knight(60,60)
-	plat3=make_platform(68,100)
-	plat2=make_platform(60,100)
-	plat1=make_platform(52,100)
-	add(map_objects,plat3)
-	add(map_objects,plat2)
-	add(map_objects,plat1)
+	player=make_knight(60,30)
+	--plat3=make_platform(68,100)
+	--plat2=make_platform(60,100)
+	--plat1=make_platform(52,100)
+	--add(map_objects,plat3)
+	--add(map_objects,plat2)
+	--add(map_objects,plat1)
 	
 	-- game_state at 0001 is displaying the logo --
 	-- game_state at 0010 is the start menu --
@@ -49,9 +49,7 @@ function _update()
 		end
 		
 	else	
-		for obj in all(map_objects) do
-			obj:update()
-		end
+	
 		player:update()
 	end
 	
@@ -60,7 +58,6 @@ end
 function _draw()
 	-- Called 30 times a second, this function writes from the draw buffer --
     cls()
-    local obj
 	
 	if game_state&0b0001==1 then
 		-- run the logo --
@@ -84,9 +81,8 @@ function _draw()
 		end
 		logo_sprCount+=1
 	else	
-		for obj in all(map_objects) do
-			obj:draw()
-		end
+		map( 0, 0, 0, 0, 16, 16 )
+		
 		player:draw()
 	end
 	
@@ -94,47 +90,78 @@ end
 
 function make_knight(x,y)
     return make_game_object(001,"knight",x,y,16,16,{
+		left_hits=0,
+		right_hits=0,
+		bottom_hits=0,
 		jumping=false,
+		direction=0,
 		update=function(self)		
+			--Check map square--
+		
+		
 			--player movement --
 			if (btnp(⬆️) and self.jumping==false) then
 				self.y_v=-5
 				self.jumping=true
+				self.direction=1
 			end
 			if btnp(⬇️) then
+				self.direction=3 
 				--self.y_v+=1--
 			end
 			if btn(⬅️) then
 				self.x_v=-2
+				self.direction=4 
 			elseif btn(➡️) then
 				self.x_v=2
+				self.direction=2 
 			else
 				self.x_v=0
 			end	
 		
 			-- The following is collision code --
-			self.x=mid(0,(self.x+self.x_v),120)
-			self.y=mid(0,(self.y+self.y_v),96)
+			local test_x=mid(0,(self.x+self.x_v),112)
+			local test_y=mid(0,(self.y+self.y_v),112)
 			
-			for obj in all(map_objects) do
-				local hit_dir=self:check_for_collision(obj)
-				if hit_dir=="top" and fget(obj.sprite,0) then
-					self.y=obj.y+obj.height
-				elseif hit_dir=="bottom" and fget(obj.sprite,0) then	
-					self.y=obj.y-self.height
-					self.jumping=false
-				elseif hit_dir=="left" and fget(obj.sprite,0) then	
-					self.x=obj.x+obj.width
-				elseif hit_dir=="right" and fget(obj.sprite,0) then	
-					self.x=obj.x-self.width
-				end
+			self.left_hits=0
+			self.right_hits=0
+			self.bottom_hits=0
+			
+			for i=0,15 do
+				self.bottom_hits+=fget(mget( ((test_x+i)/8), ((test_y+16)/8)))
 			end
-			
+				
 			-- The force of gravity is 30 px per second, 1 px per update() call --
 			-- Unless there is a hit for adjacency in the down direction --
-			if (self.y_v<=0) then
-				self.y_v+=1
+			if self.bottom_hits==0 then
+				if self.y_v<3 then
+					self.y_v+=1
+				end
+			else
+				self.y_v=0
+				self.jumping=false
 			end
+			
+			
+			-- Now do the left and right collision --
+			
+			for i=0,15 do
+				self.left_hits+=fget(mget( ((test_x-1)/8), ((test_y+i)/8)))
+			end
+			
+			for i=0,15 do
+				self.right_hits+=fget(mget( ((test_x+15)/8), ((test_y+i)/8)))
+			end
+			
+			if self.right_hits>0 and self.x_v>0 then
+				self.x_v=0
+			elseif self.left_hits>0 and self.x_v<0 then
+				self.x_v=0
+			else
+				self.x=mid(0,(self.x+self.x_v),112)
+			end
+			
+			self.y=mid(0,(self.y+self.y_v),112)
 			
 		end,
 		draw=function(self)
@@ -143,6 +170,11 @@ function make_knight(x,y)
 			spr(self.sprite,self.x,self.y,2,2)
 			palt(0,true)
 			palt(9,false)
+			
+			-- Draw Debug Stuff --
+			print(self.left_hits,0,0)
+			print(self.right_hits,0,8)
+			print(self.bottom_hits,0,16)
 		end
 	})
 end
