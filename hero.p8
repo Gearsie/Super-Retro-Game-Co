@@ -7,23 +7,24 @@ local game_state
 local logo_sprCount
 local logo_pix
 local slash_objects
+local enemy_objects
 
 function _init()
 	map_objects={}
 	slash_objects={}
+	enemy_objects={}
+	
 	player=make_knight(5,104)
+	
 	make_floor()
-	--plat3=make_platform(68,100)
-	--plat2=make_platform(60,100)
-	--plat1=make_platform(52,100)
+	
 	win_01=make_window(74,86,6,2)
 	win_04=make_window(15,70,4,2)
 	win_02=make_window(60,100,3,3)
 	win_05=make_window(80,56,6,2)
 	win_03=make_window(40,112,7,7)
 	gameExit=make_exit(88,40)
-	--win_01=make_window(60,60,2,2)
-	--win_01=make_window(60,60,2,2)
+	
 	add(map_objects,win_01)
 	add(map_objects,win_03)
 	add(map_objects,win_02)
@@ -34,9 +35,9 @@ function _init()
 	add(map_objects,plat1)
 	add(map_objects,gameExit)
 	
-	-- game_state at 0001 is displaying the logo --
-	-- game_state at 0010 is the start menu --
-	-- game_state at 0100 is running the game itself --
+	chrome=make_enemy(16,55)
+	add(enemy_objects,chrome)
+	
 	game_state=1
 	
 	logo_sprCount=0
@@ -75,6 +76,11 @@ function _update()
 				del(slash_objects,obj)
 			end
 		end
+		
+		for obj in all(enemy_objects) do
+			obj:update()
+		end
+		
 		player:update()
 	end
 	
@@ -121,7 +127,17 @@ function _draw()
 			obj:draw()
 		end
 		
+		for obj in all(enemy_objects) do
+			obj:draw()
+		end
+		
 		player:draw()
+	
+	elseif game_state==9 then
+		--you lose--
+		cls()
+		print( "Teh SySteM is corUptEd, yoU LOSE!",0,60,8 )
+	
 	end
 	
 end
@@ -186,12 +202,12 @@ function make_knight(x,y)
 				self.secondary_slash=false
 				self.swing_anim=0
 			end
-			
-			
 		
 			-- The following is collision code --
-			self.x=mid(0,(self.x+self.x_v),124)
-			self.y=mid(0,(self.y+self.y_v),124)
+			if self.swing==false then
+				self.x=mid(0,(self.x+self.x_v),124)
+				self.y=mid(0,(self.y+self.y_v),124)
+			end
 
 			for obj in all(map_objects) do
 				local hit_dir=self:check_for_collision(obj)
@@ -213,6 +229,16 @@ function make_knight(x,y)
 				end
 			end
 			
+			hit_dir="bugs"
+			
+			for obj in all(enemy_objects) do
+				hit_dir=self:check_for_collision(obj)
+				
+				if ( hit_dir=="left" or hit_dir=="right") and fget(obj.sprite,3) then
+					game_state=9
+				end
+				
+			end
 				
 			-- The force of gravity is 30 px per second, 1 px per update() call --
 			-- Unless there is a hit for adjacency in the down direction --
@@ -341,6 +367,49 @@ function make_floor()
 	end
 end
 
+function make_enemy(x,y)
+	return make_game_object(096,"chrome",x,y,16,16,{
+		hit=false,
+		idle_anim=0,
+		start_x=x,
+		start_y=y,
+		update=function(self)
+			if self.hit==true then
+				self.sprite=167
+			end
+			
+			if self.idle_anim<6 then
+				self.x=self.start_x
+				self.y=self.start_y
+			elseif self.idle_anim>=6 and self.idle_anim<12 then
+				self.x=self.start_x+1
+				self.y=self.start_y
+			elseif self.idle_anim>=12 and self.idle_anim<18 then
+				self.x=self.start_x+1
+				self.y=self.start_y+1
+			elseif self.idle_anim>=18 and self.idle_anim<24 then
+				self.x=self.start_x
+				self.y=self.start_y+1
+			else
+				self.idle_anim=0
+			end
+			
+			self.idle_anim+=1
+			
+			
+			
+		end,
+		draw=function(self)
+			palt(0,false)
+			palt(9,true)
+			spr(self.sprite,self.x,self.y,2,2)
+			palt(0,true)
+			palt(9,false)
+		end
+	})
+end
+	
+
 function make_pix(x,y,v_x,v_y,colour,life)
 	local obj={
 		x=x,
@@ -448,6 +517,7 @@ function make_game_object(sprite,name,x,y,width,height,props)
 			if obj_overlap(right_hitbox, obj) then
 				return "right"
 			end
+			return "bugs"
 		end,
 		check_for_adjacency=function(self,obj,direction)
 			local top_hitbox={
@@ -602,7 +672,7 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 00000000000000000000000000000000000000000000000000000000999999999999999900000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000999999999999999900000000000000000000000000000000000000000000000000000000
 __gff__
-0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010101000000000000000000000202000101010000000000000000000002020001010100000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010101000000000000000808000202000101010000000000000008080002020001010100000000000000
 0000000000000000000000000000000000000000000000000000000001010101010101010101010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __map__
 8d9b9b8080808080808080808080808000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
